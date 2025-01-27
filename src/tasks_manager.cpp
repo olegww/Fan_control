@@ -1,43 +1,70 @@
 #include "tasks_manager.h"
+#include "time_manager.h"
 #include "rpm.h"
 #include "display.h"
 #include "encoder_logic.h"
+#include <time.h>
 #include <esp_task_wdt.h>
-
-// Дескрипторы задач
+#include <WiFi.h>
+// #define DEBUG_TIME
+//  Дескрипторы задач
 TaskHandle_t updateDisplayTaskHandle = NULL;
 TaskHandle_t handleEncoderTaskHandle = NULL;
 TaskHandle_t monitorRPMTaskHandle = NULL;
+TaskHandle_t timeManagerTaskHandle = NULL;
 
 // Мьютекс для синхронизации данных
 SemaphoreHandle_t mutex;
 
+void timeManagerTask(void *pvParameters)
+{
+    static unsigned long lastSyncTime = 0; // Последняя синхронизация
+    while (true)
+    {
+        // Обновляем локальное системное время
+        updateSystemTime();
+
+#ifdef DEBUG_TIME
+        // Вывод текущего времени каждые 10 секунд
+        static unsigned long lastDebugTime = 0;
+        if (millis() - lastDebugTime > 10000)
+        {
+            lastDebugTime = millis();
+            time_t now = time(nullptr); // Получаем текущее время
+            struct tm timeInfo;
+            localtime_r(&now, &timeInfo); // Локальное время
+
+            char buffer[20];
+            strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
+
+            Serial.print("Updated system time: ");
+            Serial.println(buffer);
+        }
+#endif
+        esp_task_wdt_reset(); // Сброс watchdog
+        // Задержка между циклами
+        vTaskDelay(pdMS_TO_TICKS(10000)); // Обновление раз в секунду
+    }
+    vTaskDelete(NULL); // Завершаем задачу
+}
 
 // Задача мониторинга RPM
-void monitorRPMTask(void *pvParameters) {
-    for (;;) {
-        monitorRPM(); // Мониторинг RPM
-        vTaskDelay(pdMS_TO_TICKS(10)); // Задержка 10 мс
+void monitorRPMTask(void *pvParameters)
+{
+    for (;;)
+    {
+        monitorRPM();                  // Мониторинг RPM
+        vTaskDelay(pdMS_TO_TICKS(100)); // Задержка 10 мс
     }
 }
-
-/*
-// Задача для мониторинга RPM
-void monitorRPMTask(void *pvParameters) {
-    while (true) {
-        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-            monitorRPM(); // Вызываем функцию мониторинга RPM
-            xSemaphoreGive(mutex);
-        }
-        vTaskDelay(pdMS_TO_TICKS(10)); // Задержка 10 мс для высокой частоты опроса
-    }
-}
-*/
 
 // Задача для обновления дисплея
-void updateDisplayTask(void *pvParameters) {
-    while (true) {
-        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+void updateDisplayTask(void *pvParameters)
+{
+    while (true)
+    {
+        if (xSemaphoreTake(mutex, portMAX_DELAY))
+        {
             updateDisplay(); // Обновление дисплея
             xSemaphoreGive(mutex);
         }
@@ -46,9 +73,12 @@ void updateDisplayTask(void *pvParameters) {
 }
 
 // Задача для обработки энкодера
-void handleEncoderTask(void *pvParameters) {
-    while (true) {
-        if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+void handleEncoderTask(void *pvParameters)
+{
+    while (true)
+    {
+        if (xSemaphoreTake(mutex, portMAX_DELAY))
+        {
             handleEncoder(); // Обработка энкодера
             xSemaphoreGive(mutex);
         }
@@ -66,7 +96,7 @@ void createTasks()
         Serial.println("Failed to create mutex");
         return;
     }
-        // Создаем задачу для мониторинга RPM
+    // мониторинг RPM
     xTaskCreatePinnedToCore(
         monitorRPMTask,
         "MonitorRPMTask",
@@ -74,10 +104,9 @@ void createTasks()
         NULL,
         1,
         &monitorRPMTaskHandle,
-        1
-    );
+        0);
 
-    // Создаем задачу для обновления дисплея
+    // обновление дисплея
     xTaskCreatePinnedToCore(
         updateDisplayTask,
         "UpdateDisplayTask",
@@ -88,7 +117,7 @@ void createTasks()
         0 // Закрепляем за ядром 0
     );
 
-    // Создаем задачу для обработки энкодера
+    // обработка энкодера
     xTaskCreatePinnedToCore(
         handleEncoderTask,
         "HandleEncoderTask",
@@ -96,9 +125,18 @@ void createTasks()
         NULL,
         1,
         &handleEncoderTaskHandle,
-        1 // Закрепляем за ядром 1
+        0 // Закрепляем за ядром 1
     );
-
+    // управление временем
+    xTaskCreatePinnedToCore(
+        timeManagerTask,      // Функция задачи
+        "TimeManagerTask",    // Имя задачи
+        8192,                 // Размер стека
+        NULL,                 // Параметры задачи
+        tskIDLE_PRIORITY + 1, // Низкий приоритет
+        &updateDisplayTaskHandle,
+        1 // Ядро для выполнения задачи
+    );
 }
 
 // Удаление задач

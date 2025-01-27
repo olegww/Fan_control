@@ -15,7 +15,7 @@
         }
 
         .logo {
-            width: 150px;
+            width: 50px;
             margin-top: 20px;
         }
 
@@ -69,6 +69,7 @@
 
     <h2>FAN CONTROL</h2>
     <div id="status">Status: <span id="connection-status" class="connected">connected</span></div>
+    <div id="current-time" class="data">Time: --:--:--</div>
     <div id="co2" class="data">CO2: -- ppm</div>
     <div id="rpm" class="data">RPM: -- /min</div>
     <div>
@@ -89,79 +90,82 @@
         const co2Element = document.getElementById("co2");
         const rpmElement = document.getElementById("rpm");
         const feedbackElement = document.getElementById("feedback");
+        const rotationModeElement = document.getElementById("rotation-mode");
 
-        function updateRPM() {
-            // Отправляем GET-запрос на сервер
-            fetch('/api/data')
-                .then(response => response.json())
-                .then(data => {
-                    // Обновляем содержимое элемента <div id="rpm">
-                    document.getElementById('rpm').textContent = `RPM: ${data.value} /min`;
-                })
-                .catch(error => console.error('Error fetching RPM data:', error));
+        function updateConnectionStatus(isConnected) {
+            connectionStatus.textContent = isConnected ? "connected" : "disconnected";
+            connectionStatus.className = isConnected ? "connected" : "disconnected";
         }
 
-        // Обновляем значение каждые 3 секунды
-        setInterval(updateRPM, 1000);
-
-        function updateData() {
+        function updateDataAndCheckConnection() {
             fetch('/api/data')
-                .then(response => response.json())
-                .then(data => {
-                    co2Element.textContent = `CO2: ${data.co2} ppm`;
-
-                    // Если RPM отсутствует или равно 0, отображаем "RPM: 0 /min"
-                    if (data.rpm === undefined || data.rpm === 0) {
-                        rpmElement.textContent = "RPM: 0 /min";
-                    } else {
-                        rpmElement.textContent = `RPM: ${data.rpm} /min`;
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
-
+                    return response.json();
+                })
+                .then(data => {
+                    updateConnectionStatus(true);
+                    co2Element.textContent = `CO2: ${data.co2} ppm`;
+                    rpmElement.textContent = data.rpm ? `RPM: ${data.rpm} /min` : "RPM: 0 /min";
                     rotationModeElement.textContent = `Rotation: ${data.rotation}`;
                 })
-                .catch(err => {
-                    console.error("Failed to fetch data:", err);
-                    connectionStatus.textContent = "disconnected";
-                    connectionStatus.className = "disconnected";
-
-                    // Сбрасываем текстовые значения в случае ошибки
+                .catch(error => {
+                    console.error("Failed to fetch data or check connection:", error);
+                    updateConnectionStatus(false);
                     co2Element.textContent = "CO2: -- ppm";
                     rpmElement.textContent = "RPM: -- /min";
                     rotationModeElement.textContent = "Rotation: --";
                 });
         }
 
+        function updateTime() {
+            fetch('/api/time')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('current-time').textContent = `Time: ${data.time}`;
+                })
+                .catch(err => console.error('Error fetching time:', err));
+        }
+
+        let isCommandInProgress = false;
 
         function sendCommand(command) {
+            if (isCommandInProgress) return;
+            isCommandInProgress = true;
+
             feedbackElement.textContent = `Sending command: ${command}...`;
+
             fetch('/api/command', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: `value=${command}`
             })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === "ok") {
-                        feedbackElement.textContent = `Command "${command}" OK`;
-                    } else {
-                        feedbackElement.textContent = `Error executing command: "${command}".`;
-                    }
-                    updateData(); // Update UI after command execution
+                    isCommandInProgress = false;
+                    feedbackElement.textContent = data.status === "ok"
+                        ? `Command "${command}" OK`
+                        : `Error executing command: "${command}".`;
+                    updateDataAndCheckConnection();
                 })
                 .catch(err => {
+                    isCommandInProgress = false;
                     feedbackElement.textContent = `Error communicating with the server.`;
                     console.error("Failed to send command:", err);
                 });
         }
 
-        // Initial status
-        connectionStatus.textContent = "connected";
-        connectionStatus.className = "connected";
-        const rotationModeElement = document.getElementById("rotation-mode");
-        // Update data every 3 seconds
-        setInterval(updateData, 3000);
+        window.onload = () => {
+            updateDataAndCheckConnection();
+            updateTime();
+        };
+
+        setInterval(() => {
+            updateDataAndCheckConnection();
+            updateTime();
+        }, 5000); // Обновление каждые 5 секунд
     </script>
 </body>
 

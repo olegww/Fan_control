@@ -2,8 +2,6 @@
 #include "config.h"
 #include <Arduino.h>
 
-
-
 // Константы
 //const int hallSensorPin = 35; // Пин датчика Холла
 const unsigned long debounceInterval = 6; // Минимальное время между состояниями (мс)
@@ -60,11 +58,12 @@ void monitorRPM() {
         unsigned long averageDuration = sumDurations / validPulses; // Средняя длительность
         rpm = 60000000 / (averageDuration * 2); // Вычисление RPM
     }
-
+    /*
     // Отладочный вывод RPM каждые 100 мс
     if (currentTime - lastUpdateTime >= 100) {
         Serial.print("RPM: ");
         Serial.println(rpm);
         lastUpdateTime = currentTime;
     }
+    */
 }

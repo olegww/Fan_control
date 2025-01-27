@@ -15,10 +15,16 @@
 #include <GyverEncoder.h>
 #include <ESP32Servo.h>
 
+#include <esp_system.h> // Для работы с функцией esp_reset_reason()
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+#include "esp_log.h"
+
 #define SCREEN_WIDTH 128 // Ширина дисплея
 #define SCREEN_HEIGHT 64 // Высота дисплея
 #define OLED_RESET -1    // Сброс не используется
 #define OLED_ADDRESS 0x3C // Адрес I2C
+
+//#define DEBUG_TIME // Включить режим отладки
 
 // Пины для энкодера
 #define CLK 33
@@ -34,6 +40,13 @@ extern Encoder enc1;
 extern Servo esc;
 //extern volatile int rotationCount;
 extern int pulseWidth;
+
+
+// NTP настройки
+extern const char* ntpServer; // ntp0.ntp-servers.net pool.ntp.org
+extern long gmtOffset_sec;  // Часовой пояс (Москва +3)
+const int daylightOffset_sec = 0;    // Летнее время (нет)
+
 
 // Переменные для расчета RPM
 extern volatile unsigned long lastPulseTime;
