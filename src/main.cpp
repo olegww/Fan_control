@@ -55,9 +55,10 @@ void setup()
         while (true)
             ; // Остановить выполнение
     }
+    display.clearDisplay();
+    display.drawBitmap(0, 0, myLogo, 128, 64, SSD1306_WHITE); // Рисуем логотип
     display.display();
     delay(2000); // Задержка для показа стартового экрана
-    display.clearDisplay();
     // Устанавливаем таймаут подключения к Wi-Fi
     wifiManager.setConnectTimeout(10); // Таймаут в секундах
     // Подключение к Wi-Fi с использованием WiFiManager

@@ -14,10 +14,12 @@
 #include <Adafruit_SSD1306.h>    // Библиотека для работы с дисплеем SSD1306
 #include <GyverEncoder.h>
 #include <ESP32Servo.h>
-
+#include "display_logo.h"
 #include <esp_system.h> // Для работы с функцией esp_reset_reason()
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
+
+//extern const unsigned char myLogo;
 
 #define SCREEN_WIDTH 128 // Ширина дисплея
 #define SCREEN_HEIGHT 64 // Высота дисплея

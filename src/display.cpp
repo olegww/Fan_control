@@ -66,6 +66,16 @@ void updateDisplay()
     display.print("RPM: ");
     display.print(rpm);
     display.println(" ");
+       // Получение текущего времени
+    time_t now = time(nullptr); // Получаем текущее время из системного таймера
+    struct tm timeInfo;
+    localtime_r(&now, &timeInfo);
+
+    // Форматированный вывод текущего времени
+    display.printf("Time: %02d:%02d:%02d\n",
+                   timeInfo.tm_hour,
+                   timeInfo.tm_min,
+                   timeInfo.tm_sec);
     // Вычисляем аптайм
     unsigned long uptimeMillis = millis();
     unsigned long uptimeSeconds = uptimeMillis / 1000;

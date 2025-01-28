@@ -68,6 +68,7 @@ void updateDisplayTask(void *pvParameters)
             updateDisplay(); // Обновление дисплея
             xSemaphoreGive(mutex);
         }
+        esp_task_wdt_reset(); // Сброс WDT
         vTaskDelay(pdMS_TO_TICKS(1000)); // Обновление раз в секунду
     }
 }

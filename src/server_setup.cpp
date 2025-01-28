@@ -1,6 +1,6 @@
 #include "server_setup.h"
 #include "time_manager.h"
-#include "config.h" // Для переменных rpm, rotationMode, pulseWidth, и esc
+#include "config.h"
 #include <time.h>
 #include <SPIFFS.h>
 
@@ -11,11 +11,6 @@ std::atomic<int> activeConnections{0}; // Счетчик активных под
 std::mutex connectionsMutex;           // Мьютекс для потокобезопасности
 
 extern String rotationMode;
-// NTP настройки
-// extern char* ntpServer; // ntp0.ntp-servers.net pool.ntp.org
-// extern long gmtOffset_sec;  // Часовой пояс (Москва +3)
-// extern int daylightOffset_sec;    // Летнее время (нет)
-
 void setupServer(AsyncWebServer &server)
 {
     // Раздача статических файлов
