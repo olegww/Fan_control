@@ -58,6 +58,7 @@ void updateDisplay()
     else
     {
         display.println("WiFi: Disconnected");
+
     }
     // Отображаем температуру и влажность
     display.print("Pulse: ");
@@ -66,7 +67,7 @@ void updateDisplay()
     display.print("RPM: ");
     display.print(rpm);
     display.println(" ");
-       // Получение текущего времени
+    // Получение текущего времени
     time_t now = time(nullptr); // Получаем текущее время из системного таймера
     struct tm timeInfo;
     localtime_r(&now, &timeInfo);

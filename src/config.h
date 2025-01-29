@@ -8,6 +8,8 @@
 */
 
 #include <WiFi.h>
+//#include <WiFiAP.h>
+//#include <WiFiClient.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
 #include <Adafruit_GFX.h>        // Библиотека графики

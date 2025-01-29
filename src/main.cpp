@@ -6,12 +6,14 @@
 #include "server_setup.h"
 #include "time_manager.h"
 #include <WiFi.h>
+//#include <WiFiAP.h>
+//#include <WiFiClient.h>
 #include <time.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
 #include <SPIFFS.h>
-
 #include <atomic>
+
 extern std::atomic<int> activeConnections;
 
 // Objects
@@ -25,6 +27,10 @@ Encoder enc1(CLK, DT, SW);
 Servo esc;
 // WiFiManager
 AsyncWiFiManager wifiManager(&server, &dns);
+
+// Настройки AP
+const char *apSSID = "Fan_control";
+const char *apPassword = "12344321";
 
 // Глобальные переменные
 int pulseWidth = 1450;        // Ширина импульса (начальное значение)
@@ -40,29 +46,64 @@ String rotationMode = "Left"; // Лево или Право
 void setup()
 {
     Serial.begin(115200);
-    // Инициализация ESC
     esc.attach(27);                    // Подключите сигнальный провод ESC к пину 27
     esc.writeMicroseconds(1450);       // Инициализация начального значения ширины импульса ESC
     delay(2000);                       // Задержка для инициализации ESC
     esc.writeMicroseconds(pulseWidth); // Установка начальной ширины импульса
+
     // Инициализация пина датчика Холла как входа
     pinMode(hallSensorPin, INPUT);
-    // attachInterrupt(digitalPinToInterrupt(hallSensorPin), hallSensorISR, CHANGE);
+
     //  Инициализация дисплея
     if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS))
     {
         Serial.println("SSD1306 allocation failed");
-        while (true)
-            ; // Остановить выполнение
+        while (true); // Остановить выполнение
     }
     display.clearDisplay();
     display.drawBitmap(0, 0, myLogo, 128, 64, SSD1306_WHITE); // Рисуем логотип
     display.display();
     delay(3000); // Задержка для показа стартового экрана
-    // Устанавливаем таймаут подключения к Wi-Fi
+
+    //wifiManager.resetSettings(); // Удаляет сохраненные SSID и пароль из памяти
+
     wifiManager.setConnectTimeout(10); // Таймаут в секундах
-    // Подключение к Wi-Fi с использованием WiFiManager
-    if (!wifiManager.autoConnect("fan_control"))
+    WiFi.mode(WIFI_AP);
+    delay(500);
+    bool apStarted = WiFi.softAP(apSSID, apPassword);
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    if (apStarted) {
+    int y = 0; // Начальная координата по вертикали
+    display.setCursor(0, y);
+    display.print("AP Name: ");
+    display.println(apSSID);
+    y += 10;
+    display.setCursor(0, y);
+    display.print("IP:      ");
+    display.println(WiFi.softAPIP());
+    y += 10;
+    display.setCursor(0, y);
+    display.print("pass:    ");
+    display.println(apPassword);
+    y += 10;
+    display.setCursor(0, y);
+    display.print("firmware: ");
+    display.println("v1.0");
+    y += 10;
+    display.setCursor(0, y);
+    display.print("Please connect and   ");
+    display.print(" configure Wi-Fi...");
+    y += 10;
+        display.display();
+    } else {
+        Serial.println("Failed to start Access Point");
+    }
+    display.display();
+
+    if (!wifiManager.autoConnect(apSSID, apPassword))
     {
         Serial.println("Failed to connect to WiFi. Restarting...");
         delay(3000);
@@ -139,7 +180,8 @@ void setup()
 void loop()
 {
     static unsigned long lastMillis = 0;
-    if (millis() - lastMillis > 5000) {
+    if (millis() - lastMillis > 5000)
+    {
         lastMillis = millis();
         Serial.printf("Free heap: %d bytes\n", esp_get_free_heap_size());
         Serial.printf("Heap: %d bytes, Active connections: %d\n", esp_get_free_heap_size(), activeConnections.load());
