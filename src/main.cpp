@@ -6,8 +6,8 @@
 #include "server_setup.h"
 #include "time_manager.h"
 #include <WiFi.h>
-//#include <WiFiAP.h>
-//#include <WiFiClient.h>
+// #include <WiFiAP.h>
+// #include <WiFiClient.h>
 #include <time.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
@@ -58,47 +58,57 @@ void setup()
     if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS))
     {
         Serial.println("SSD1306 allocation failed");
-        while (true); // Остановить выполнение
+        while (true)
+            ; // Остановить выполнение
     }
     display.clearDisplay();
     display.drawBitmap(0, 0, myLogo, 128, 64, SSD1306_WHITE); // Рисуем логотип
     display.display();
-    delay(3000); // Задержка для показа стартового экрана
+    delay(2000); // Задержка для показа лого
 
     //wifiManager.resetSettings(); // Удаляет сохраненные SSID и пароль из памяти
 
     wifiManager.setConnectTimeout(10); // Таймаут в секундах
+
+    // Перед запуском AP полностью отключаем STA режим Wi-Fi
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    delay(100);
+
     WiFi.mode(WIFI_AP);
-    delay(500);
+    delay(100);
     bool apStarted = WiFi.softAP(apSSID, apPassword);
 
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
-    if (apStarted) {
-    int y = 0; // Начальная координата по вертикали
-    display.setCursor(0, y);
-    display.print("AP Name: ");
-    display.println(apSSID);
-    y += 10;
-    display.setCursor(0, y);
-    display.print("IP:      ");
-    display.println(WiFi.softAPIP());
-    y += 10;
-    display.setCursor(0, y);
-    display.print("pass:    ");
-    display.println(apPassword);
-    y += 10;
-    display.setCursor(0, y);
-    display.print("firmware: ");
-    display.println("v1.0");
-    y += 10;
-    display.setCursor(0, y);
-    display.print("Please connect and   ");
-    display.print(" configure Wi-Fi...");
-    y += 10;
+    if (apStarted)
+    {
+        int y = 0; // Начальная координата по вертикали
+        display.setCursor(0, y);
+        display.print("AP Name: ");
+        display.println(apSSID);
+        y += 10;
+        display.setCursor(0, y);
+        display.print("IP:      ");
+        display.println(WiFi.softAPIP());
+        y += 10;
+        display.setCursor(0, y);
+        display.print("pass:    ");
+        display.println(apPassword);
+        y += 10;
+        display.setCursor(0, y);
+        display.print("firmware: ");
+        display.println("v1.0");
+        y += 10;
+        display.setCursor(0, y);
+        display.print("Please connect and   ");
+        display.print(" configure Wi-Fi...");
+        y += 10;
         display.display();
-    } else {
+    }
+    else
+    {
         Serial.println("Failed to start Access Point");
     }
     display.display();
@@ -136,9 +146,9 @@ void setup()
     server.begin();      // Запуск сервера
     Serial.println("Server started!");
     // initTime(true); // Пробуем синхронизацию с NTP
-    // Serial.println("Time initialization completed.");
     createTasks(); // Инициализация менеджера задач
-                   // Определяем причину последней перезагрузки
+    // Определяем причину последней перезагрузки
+
     esp_reset_reason_t resetReason = esp_reset_reason();
     switch (resetReason)
     {
