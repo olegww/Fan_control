@@ -36,22 +36,14 @@ void initTime(bool useNTP) {
 void updateSystemTime() {
     static time_t lastSyncTime = 0;
     time_t now = time(nullptr);
-    if (now - lastSyncTime > 3600) { // Синхронизация раз в час
+
+    // Синхронизация выполняется только в сетевом режиме
+    if (currentMode == NETWORK_MODE && now - lastSyncTime > 3600) {
         lastSyncTime = now;
         configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-        Serial.println("Time synchronized.");
+        Serial.println("Time synchronized via NTP.");
     }
 }
-/*
-void updateSystemTime() {
-    time_t now = time(nullptr);
-    struct tm timeInfo;
-    localtime_r(&now, &timeInfo);
-
-    char buffer[20];
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
-}
-*/
 
 // Получение текущего времени
 struct tm getCurrentTime() {

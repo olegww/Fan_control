@@ -8,8 +8,7 @@
 */
 
 #include <WiFi.h>
-//#include <WiFiAP.h>
-//#include <WiFiClient.h>
+#include <Preferences.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
 #include <Adafruit_GFX.h>        // Библиотека графики
@@ -17,11 +16,15 @@
 #include <GyverEncoder.h>
 #include <ESP32Servo.h>
 #include "display_logo.h"
+#include "menu_logic.h"
+#include "local_disp.h"
 #include <esp_system.h> // Для работы с функцией esp_reset_reason()
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 
+extern Preferences preferences; // Объект для работы с NVS
 //extern const unsigned char myLogo;
+//float version_firmware = 1.0;
 
 #define SCREEN_WIDTH 128 // Ширина дисплея
 #define SCREEN_HEIGHT 64 // Высота дисплея
@@ -44,6 +47,34 @@ extern Encoder enc1;
 extern Servo esc;
 //extern volatile int rotationCount;
 extern int pulseWidth;
+extern bool localMode;
+
+// Настройки AP
+extern const char *apSSID;
+extern const char *apPassword;
+
+// Mode
+enum DeviceMode {
+    UNDEFINED_MODE,
+    NETWORK_MODE,
+    LOCAL_MODE
+};
+extern DeviceMode currentMode;
+
+
+extern int menuIndex;
+extern const int menuItems; // Количество пунктов меню
+// Определение списка состояний меню
+enum MenuState {
+    MAIN_MENU,
+    SETTINGS,
+    TIME_CONFIG,
+    FAN_MODE,
+    CUSTOM_MODE
+};
+extern MenuState currentMenu;
+extern int subMenuIndex;
+
 
 
 // NTP настройки

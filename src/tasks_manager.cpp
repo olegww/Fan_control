@@ -1,14 +1,20 @@
 #include "tasks_manager.h"
+#include "server_setup.h"
 #include "time_manager.h"
+#include "config.h"
 #include "rpm.h"
 #include "display.h"
 #include "encoder_logic.h"
+#include "local_disp.h"
 #include <time.h>
 #include <esp_task_wdt.h>
 #include <WiFi.h>
 // #define DEBUG_TIME
+
+extern bool localMode;
 //  Дескрипторы задач
 TaskHandle_t updateDisplayTaskHandle = NULL;
+TaskHandle_t updateLocalDisplayTaskHandle = NULL;
 TaskHandle_t handleEncoderTaskHandle = NULL;
 TaskHandle_t monitorRPMTaskHandle = NULL;
 TaskHandle_t timeManagerTaskHandle = NULL;
@@ -43,101 +49,98 @@ void timeManagerTask(void *pvParameters)
 #endif
         esp_task_wdt_reset(); // Сброс watchdog
         // Задержка между циклами
-        vTaskDelay(pdMS_TO_TICKS(10000)); // Обновление раз в секунду
+        vTaskDelay(pdMS_TO_TICKS(1000)); // Обновление раз в секунду
     }
     vTaskDelete(NULL); // Завершаем задачу
 }
 
-// Задача мониторинга RPM
 void monitorRPMTask(void *pvParameters)
 {
     for (;;)
     {
-        monitorRPM();                  // Мониторинг RPM
-        vTaskDelay(pdMS_TO_TICKS(100)); // Задержка 10 мс
+        monitorRPM();
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
-// Задача для обновления дисплея
 void updateDisplayTask(void *pvParameters)
 {
     while (true)
     {
         if (xSemaphoreTake(mutex, portMAX_DELAY))
         {
-            updateDisplay(); // Обновление дисплея
+            updateDisplay();
             xSemaphoreGive(mutex);
         }
-        esp_task_wdt_reset(); // Сброс WDT
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Обновление раз в секунду
+        esp_task_wdt_reset(); 
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
-// Задача для обработки энкодера
+void updateLocalDisplayTask(void *pvParameters)
+{
+    while (true)
+    {
+        if (xSemaphoreTake(mutex, portMAX_DELAY))
+        {
+            updateLocalDisplay();
+            xSemaphoreGive(mutex);
+        }
+        esp_task_wdt_reset();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 void handleEncoderTask(void *pvParameters)
 {
     while (true)
     {
         if (xSemaphoreTake(mutex, portMAX_DELAY))
         {
-            handleEncoder(); // Обработка энкодера
+            handleEncoder();
             xSemaphoreGive(mutex);
         }
-        vTaskDelay(pdMS_TO_TICKS(2)); // Частота 2 мс
+        vTaskDelay(pdMS_TO_TICKS(2));
     }
 }
 
 // Создание задач
 void createTasks()
 {
-    // Инициализация мьютекса
+    deleteTasks();
     mutex = xSemaphoreCreateMutex();
     if (mutex == NULL)
     {
         Serial.println("Failed to create mutex");
         return;
     }
-    // мониторинг RPM
-    xTaskCreatePinnedToCore(
-        monitorRPMTask,
-        "MonitorRPMTask",
-        2048,
-        NULL,
-        1,
-        &monitorRPMTaskHandle,
-        0);
 
-    // обновление дисплея
-    xTaskCreatePinnedToCore(
-        updateDisplayTask,
-        "UpdateDisplayTask",
-        2048,
-        NULL,
-        1,
-        &updateDisplayTaskHandle,
-        0 // Закрепляем за ядром 0
-    );
+    xTaskCreatePinnedToCore(monitorRPMTask, "MonitorRPMTask", 2048, NULL, 1, &monitorRPMTaskHandle, 0);
+    xTaskCreatePinnedToCore(handleEncoderTask, "HandleEncoderTask", 2048, NULL, 1, &handleEncoderTaskHandle, 0);
+    Serial.println("monitorRPMTask HandleEncoderTask start");
 
-    // обработка энкодера
-    xTaskCreatePinnedToCore(
-        handleEncoderTask,
-        "HandleEncoderTask",
-        2048,
-        NULL,
-        1,
-        &handleEncoderTaskHandle,
-        0 // Закрепляем за ядром 1
-    );
-    // управление временем
-    xTaskCreatePinnedToCore(
-        timeManagerTask,      // Функция задачи
-        "TimeManagerTask",    // Имя задачи
-        8192,                 // Размер стека
-        NULL,                 // Параметры задачи
-        tskIDLE_PRIORITY + 1, // Низкий приоритет
-        &updateDisplayTaskHandle,
-        1 // Ядро для выполнения задачи
-    );
+    if (currentMode == LOCAL_MODE)
+    {
+        xTaskCreatePinnedToCore(updateLocalDisplayTask, "UpdateLocalDisplayTask", 2048, NULL, 1, &updateLocalDisplayTaskHandle, 0);
+        Serial.println("updateLocalDisplayTask started (LOCAL_MODE)");
+    }
+    else
+    {
+        Serial.println("Starting display task for NETWORK_MODE or AP Mode");
+
+        xTaskCreatePinnedToCore(updateDisplayTask, "UpdateDisplayTask", 2048, NULL, 1, &updateDisplayTaskHandle, 0);
+        Serial.println("updateDisplayTask started");
+
+        if (currentMode == NETWORK_MODE)
+        {
+            setupServer(server);
+            server.begin();
+            Serial.println("Server started in NETWORK_MODE");
+
+            xTaskCreatePinnedToCore(timeManagerTask, "TimeManagerTask", 8192, NULL, 1, &timeManagerTaskHandle, 1);
+            Serial.println("timeManagerTask started");
+        }
+    }
 }
 
 // Удаление задач
@@ -147,6 +150,16 @@ void deleteTasks()
     {
         vTaskDelete(updateDisplayTaskHandle);
         updateDisplayTaskHandle = NULL;
+    }
+    if (timeManagerTaskHandle != NULL)
+    {
+        vTaskDelete(timeManagerTaskHandle);
+        timeManagerTaskHandle = NULL;
+    }
+    if (updateLocalDisplayTaskHandle != NULL)
+    {
+        vTaskDelete(updateLocalDisplayTaskHandle);
+        updateLocalDisplayTaskHandle = NULL;
     }
     if (handleEncoderTaskHandle != NULL)
     {

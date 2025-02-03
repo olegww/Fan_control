@@ -5,9 +5,8 @@
 #include "rpm.h"
 #include "server_setup.h"
 #include "time_manager.h"
+#include <esp_wifi.h>
 #include <WiFi.h>
-// #include <WiFiAP.h>
-// #include <WiFiClient.h>
 #include <time.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
@@ -15,6 +14,12 @@
 #include <atomic>
 
 extern std::atomic<int> activeConnections;
+
+Preferences preferences;
+
+DeviceMode currentMode = UNDEFINED_MODE; // Начальный режим (не определен)
+
+bool localMode = true; // Локальный или сетевой режим
 
 // Objects
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -31,6 +36,7 @@ AsyncWiFiManager wifiManager(&server, &dns);
 // Настройки AP
 const char *apSSID = "Fan_control";
 const char *apPassword = "12344321";
+unsigned long wifiTimeout;
 
 // Глобальные переменные
 int pulseWidth = 1450;        // Ширина импульса (начальное значение)
@@ -65,137 +71,134 @@ void setup()
     display.drawBitmap(0, 0, myLogo, 128, 64, SSD1306_WHITE); // Рисуем логотип
     display.display();
     delay(2000); // Задержка для показа лого
+    //  Читаем сохраненный режим
+    preferences.begin("fan_control", false);
+    currentMode = static_cast<DeviceMode>(preferences.getInt("device_mode", NETWORK_MODE));
+    preferences.end();
+    Serial.print("currentMode ");
+    Serial.println(currentMode);
 
-    //wifiManager.resetSettings(); // Удаляет сохраненные SSID и пароль из памяти
+    Serial.print("Saved Mode: ");
+    Serial.println(currentMode == LOCAL_MODE ? "LOCAL_MODE" : "NETWORK_MODE");
 
-    wifiManager.setConnectTimeout(10); // Таймаут в секундах
+    // Экран выбора режима
+    int selectedMode = 0; // 0 - LOCAL_MODE, 1 - NETWORK_MODE
+    unsigned long startTime = millis();
 
-    // Перед запуском AP полностью отключаем STA режим Wi-Fi
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    delay(100);
-
-    WiFi.mode(WIFI_AP);
-    delay(100);
-    bool apStarted = WiFi.softAP(apSSID, apPassword);
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    if (apStarted)
+    while (millis() - startTime < 10000) // 10 секунд на выбор режима
     {
-        int y = 0; // Начальная координата по вертикали
-        display.setCursor(0, y);
-        display.print("AP Name: ");
-        display.println(apSSID);
-        y += 10;
-        display.setCursor(0, y);
-        display.print("IP:      ");
-        display.println(WiFi.softAPIP());
-        y += 10;
-        display.setCursor(0, y);
-        display.print("pass:    ");
-        display.println(apPassword);
-        y += 10;
-        display.setCursor(0, y);
-        display.print("firmware: ");
-        display.println("v1.0");
-        y += 10;
-        display.setCursor(0, y);
-        display.print("Please connect and   ");
-        display.print(" configure Wi-Fi...");
-        y += 10;
+        enc1.tick();
+
+        if (enc1.isRight())
+        {
+            selectedMode = 1; // NETWORK_MODE
+        }
+
+        if (enc1.isLeft())
+        {
+            selectedMode = 0; // LOCAL_MODE
+        }
+
+        // Выбор режима
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.setCursor(0, 0);
+        display.println("Select Mode:");
+        display.println(selectedMode == 0 ? "> LOCAL" : "  LOCAL");
+        display.println(selectedMode == 1 ? "> NETWORK" : "  NETWORK");
         display.display();
+
+        if (enc1.isClick())
+        {
+            currentMode = (selectedMode == 0) ? LOCAL_MODE : NETWORK_MODE;
+            break;
+        }
+
+        delay(10);
+    }
+
+    // Если ничего не выбрано, загружаем последний режим из памяти
+    if (millis() - startTime >= 10000)
+    {
+        Serial.println("No selection, loading saved mode.");
     }
     else
     {
-        Serial.println("Failed to start Access Point");
+        // Сохраняем новый выбор пользователя
+        preferences.begin("fan_control", false);
+        preferences.putInt("device_mode", currentMode);
+        preferences.end();
     }
-    display.display();
 
-    if (!wifiManager.autoConnect(apSSID, apPassword))
-    {
-        Serial.println("Failed to connect to WiFi. Restarting...");
-        delay(3000);
-        ESP.restart();
-    }
-    // Если подключение успешно
-    Serial.println("Connected to WiFi!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-    // Монтируем файловую систему SPIFFS
-    if (!SPIFFS.begin(true))
-    {
-        Serial.println("Failed to mount SPIFFS");
-        return;
-    }
-    Serial.println("SPIFFS mounted successfully");
-    // Проверяем доступные файлы
-    File root = SPIFFS.open("/");
-    File file = root.openNextFile();
-    while (file)
-    {
-        Serial.print("File: ");
-        Serial.println(file.name());
-        file = root.openNextFile();
-        yield(); // Сбрасываем WDT во время чтения файлов
-    }
-    setupServer(server); // Инициализация сервера
-    updateDisplay();     // Обновляем дисплей
-    initRPM();           // Инициализация датчика Холла
-    server.begin();      // Запуск сервера
-    Serial.println("Server started!");
-    // initTime(true); // Пробуем синхронизацию с NTP
-    createTasks(); // Инициализация менеджера задач
-    // Определяем причину последней перезагрузки
+    Serial.print("Selected Mode: ");
+    Serial.println(currentMode == LOCAL_MODE ? "LOCAL_MODE" : "NETWORK_MODE");
 
-    esp_reset_reason_t resetReason = esp_reset_reason();
-    switch (resetReason)
+    // Запускаем нужный режим
+    if (currentMode == NETWORK_MODE)
     {
-    case ESP_RST_POWERON:
-        Serial.println("Power-on reset (initial power-up)");
-        break;
-    case ESP_RST_EXT:
-        Serial.println("External reset via RTC watchdog or other pin");
-        break;
-    case ESP_RST_SW:
-        Serial.println("Software reset via esp_restart()");
-        break;
-    case ESP_RST_PANIC:
-        Serial.println("Software panic (unhandled exception)");
-        break;
-    case ESP_RST_INT_WDT:
-        Serial.println("Interrupt watchdog reset");
-        break;
-    case ESP_RST_TASK_WDT:
-        Serial.println("Task watchdog reset");
-        break;
-    case ESP_RST_WDT:
-        Serial.println("Other watchdog reset");
-        break;
-    case ESP_RST_DEEPSLEEP:
-        Serial.println("Wakeup from deep sleep");
-        break;
-    case ESP_RST_BROWNOUT:
-        Serial.println("Brownout reset (voltage too low)");
-        break;
-    case ESP_RST_SDIO:
-        Serial.println("Reset over SDIO");
-        break;
-    default:
-        Serial.println("Unknown reset reason");
-        break;
+        Serial.println("Attempting WiFi connection...");
+        wifiManager.setConnectTimeout(10);
+        Serial.println("WiFi connection failed, switching to AP Mode.");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(apSSID, apPassword);
+        delay(100);
+        if (esp_wifi_connect() != ESP_OK && currentMode == NETWORK_MODE)
+        {
+            // 🔹 Отрисовка информации о AP Mode на дисплее ДО запуска задач
+            display.clearDisplay();
+            display.setTextSize(1);
+            display.setTextColor(SSD1306_WHITE);
+            display.setCursor(0, 0);
+            display.println("AP Mode Active");
+            display.println("AP Name: " + String(apSSID));
+            display.print("IP: ");
+            display.println(WiFi.softAPIP());
+            display.print("Pass: ");
+            display.println(apPassword);
+            display.display();
+        }
+
+        if (wifiManager.autoConnect(apSSID, apPassword))
+        {
+            Serial.println("WiFi connected!");
+            Serial.print("IP Address: ");
+            Serial.println(WiFi.localIP());
+
+            if (!SPIFFS.begin(true))
+            {
+                Serial.println("Failed to mount SPIFFS");
+                return;
+            }
+
+            Serial.println("SPIFFS mounted successfully");
+
+            setupServer(server);
+            server.begin();
+            Serial.println("Server started!");
+        }
+        else
+        {
+            Serial.println("WiFi connection failed, switching to local mode.");
+            currentMode = LOCAL_MODE;
+        }
     }
+    createTasks();
+    initRPM();
 }
+
 void loop()
 {
-    static unsigned long lastMillis = 0;
-    if (millis() - lastMillis > 5000)
+    if (currentMode == NETWORK_MODE)
     {
-        lastMillis = millis();
-        Serial.printf("Free heap: %d bytes\n", esp_get_free_heap_size());
-        Serial.printf("Heap: %d bytes, Active connections: %d\n", esp_get_free_heap_size(), activeConnections.load());
-        Serial.println("Preparing response for /api/data...");
+        static unsigned long lastMillis = 0;
+        if (millis() - lastMillis > 5000)
+        {
+            lastMillis = millis();
+            Serial.printf("Free heap: %d bytes\n", esp_get_free_heap_size());
+            Serial.printf("Heap: %d bytes, Active connections: %d\n", esp_get_free_heap_size(), activeConnections.load());
+            Serial.println("Preparing response for /api/data...");
+        }
     }
     // vTaskDelay(portMAX_DELAY);
     vTaskDelay(pdMS_TO_TICKS(1000));

@@ -47,9 +47,38 @@ void updateDisplay()
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
-    // Отображаем статус подключения Wi-Fi
     display.setCursor(0, 0);
-    if (WiFi.status() == WL_CONNECTED)
+
+    if (WiFi.getMode() == WIFI_AP) // Если устройство в режиме AP
+    {
+        int y = 0; // Начальная координата по вертикали
+
+        display.setCursor(0, y);
+        display.print("AP Name: ");
+        display.println(apSSID);
+        y += 10;
+
+        display.setCursor(0, y);
+        display.print("IP: ");
+        display.println(WiFi.softAPIP());
+        y += 10;
+
+        display.setCursor(0, y);
+        display.print("Pass: ");
+        display.println(apPassword);
+        y += 10;
+
+        display.setCursor(0, y);
+        display.print("Firmware: ");
+        display.println("v1.0");
+        y += 10;
+
+        display.setCursor(0, y);
+        display.println("Please connect and");
+        display.println("configure Wi-Fi...");
+        y += 10;
+    }
+    else if (WiFi.status() == WL_CONNECTED) // Если устройство подключено к Wi-Fi
     {
         display.println("WiFi: Connected");
         display.print("IP: ");
@@ -58,38 +87,21 @@ void updateDisplay()
     else
     {
         display.println("WiFi: Disconnected");
-
     }
-    // Отображаем температуру и влажность
     display.print("Pulse: ");
     display.print(pulseWidth);
     display.println(" W");
     display.print("RPM: ");
     display.print(rpm);
     display.println(" ");
-    // Получение текущего времени
-    time_t now = time(nullptr); // Получаем текущее время из системного таймера
-    struct tm timeInfo;
-    localtime_r(&now, &timeInfo);
-
-    // Форматированный вывод текущего времени
-    display.printf("Time: %02d:%02d:%02d\n",
-                   timeInfo.tm_hour,
-                   timeInfo.tm_min,
-                   timeInfo.tm_sec);
     // Вычисляем аптайм
     unsigned long uptimeMillis = millis();
     unsigned long uptimeSeconds = uptimeMillis / 1000;
     unsigned long hours = uptimeSeconds / 3600;
     unsigned long minutes = (uptimeSeconds % 3600) / 60;
     unsigned long seconds = uptimeSeconds % 60;
-
-    // Отображаем аптайм
     display.print("Uptime: ");
     display.printf("%02lu:%02lu:%02lu\n", hours, minutes, seconds);
-    // Отображаем уровень сигнала
-    // display.print("RSSI: ");
-    // display.println(WiFi.RSSI());
     drawSignalBar();
     display.display();
 }
