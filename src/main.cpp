@@ -21,6 +21,9 @@ DeviceMode currentMode = UNDEFINED_MODE; // Начальный режим (не 
 
 bool localMode = true; // Локальный или сетевой режим
 
+bool menuActive = false;
+
+
 // Objects
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // Create server&DNS for work WiFiManager
@@ -52,6 +55,8 @@ String rotationMode = "Left"; // Лево или Право
 void setup()
 {
     Serial.begin(115200);
+    Serial.print("menuActive enc_logic = ");
+    Serial.println(menuActive);
     esc.attach(27);                    // Подключите сигнальный провод ESC к пину 27
     esc.writeMicroseconds(1450);       // Инициализация начального значения ширины импульса ESC
     delay(2000);                       // Задержка для инициализации ESC
@@ -145,7 +150,7 @@ void setup()
         delay(100);
         if (esp_wifi_connect() != ESP_OK && currentMode == NETWORK_MODE)
         {
-            // 🔹 Отрисовка информации о AP Mode на дисплее ДО запуска задач
+            // AP Mode на дисплее
             display.clearDisplay();
             display.setTextSize(1);
             display.setTextColor(SSD1306_WHITE);

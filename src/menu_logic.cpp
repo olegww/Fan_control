@@ -9,6 +9,7 @@ const int menuItems = 4; // Количество пунктов меню
 MenuState currentMenu = MAIN_MENU;
 extern AsyncWebServer server;
 
+
 void executeMenuAction(int index)
 {
     switch (currentMenu)
@@ -43,25 +44,42 @@ void executeMenuAction(int index)
     }
 }
 
-void handleMenuNavigation()
+void handleMenuNavigation(unsigned long &menuTimeout)
 {
+    static unsigned long lastMoveTime = 0; // Время последнего движения
+    static int lastDirection = 0;          // Последнее направление (1 = вправо, -1 = влево)
+
     enc1.tick();
+    
+    int currentDirection = 0; // Направление движения
 
-    if (enc1.isRight())
+    if (enc1.isRight()) currentDirection = 1;
+    if (enc1.isLeft()) currentDirection = -1;
+
+    unsigned long now = millis(); // Текущее время
+
+    if (currentDirection != 0)
     {
-        menuIndex = (menuIndex + 1) % menuItems;
+        if (currentDirection == lastDirection && now - lastMoveTime < 200)
+        {
+            return;
+        }
+
+        menuIndex = (menuIndex + currentDirection + menuItems) % menuItems;
+        menuTimeout = now;
+        lastMoveTime = now;
+        lastDirection = currentDirection;
+
+        Serial.print("Moved ");
+        Serial.println(currentDirection > 0 ? "Right" : "Left");
     }
 
-    if (enc1.isLeft())
-    {
-        menuIndex = (menuIndex - 1 + menuItems) % menuItems;
-    }
-
-    if (enc1.isClick())
+    if (enc1.isClick()) // Проверяем нажатие кнопки
     {
         Serial.print("Selected menu item: ");
         Serial.println(menuIndex);
         executeMenuAction(menuIndex);
+        menuTimeout = millis();
     }
 
     updateLocalDisplay();

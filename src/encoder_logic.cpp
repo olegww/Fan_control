@@ -3,23 +3,69 @@
 #include "tasks_manager.h"
 #include "config.h"
 
+
 void initEncoder()
 {
     // Инициализация энкодера
     enc1.setType(TYPE2);
+    enc1.setTickMode(AUTO); // Добавить, если нет
+    enc1.setFastTimeout(300);
+
+    Serial.println("Encoder initialized");
+    Serial.print("menuActive enc_logic = ");
+    Serial.println(menuActive);
 }
+
+static unsigned long holdStartTime = 0;
+
+static unsigned long menuTimeout = 0;
 
 void handleEncoder()
 {
     enc1.tick();
 
-    // В локальном режиме энкодер управляет меню
     if (currentMode == LOCAL_MODE)
     {
-        handleMenuNavigation();
+        if (enc1.isHold()) // Кнопка удерживается
+        {
+            if (holdStartTime == 0) 
+            {
+                holdStartTime = millis();
+                Serial.print("holdStartTime memory: ");
+                Serial.println(holdStartTime);
+            }
+            unsigned long holdDuration = millis() - holdStartTime;
+            if (holdDuration > 2000 && !menuActive) // Если удержание больше 2 секунд
+            {
+                menuActive = true;
+                currentMenu = MAIN_MENU;
+                menuTimeout = millis();
+                Serial.println("Menu activated!");
+            }
+        }
+        else // Если кнопку отпустили
+        {
+            holdStartTime = 0; // Сбрасываем таймер
+        }
+
+        if (menuActive)
+        {
+            handleMenuNavigation(menuTimeout);
+
+            if (millis() - menuTimeout > 7000) // Таймаут бездействия
+            {
+                menuActive = false;
+                Serial.println("Menu closed due to inactivity");
+            }
+        }
+        else
+        {
+            updateLocalDisplay();
+        }
+
         return;
     }
-
+    // Сетевой режим остается без изменений
     if (enc1.isRight())
     {
         if (isStepAdjusting)
@@ -48,31 +94,22 @@ void handleEncoder()
 
     if (enc1.isClick())
     {
-        // Проверяем, если устройство в режиме AP, переключаемся в локальный режим
         if (WiFi.getMode() == WIFI_AP)
         {
             Serial.println("Encoder clicked in AP mode, switching to local mode...");
-            // wifiManager.resetSettings(); // Удаляет сохраненные SSID и пароль из памяти
-            //  Остановить сервер перед отключением Wi-Fi
             server.end();
             delay(500);
-
-            // Остановить все задачи перед удалением Wi-Fi
             deleteTasks();
-
-            // Отключить Wi-Fi
             WiFi.disconnect(true);
             WiFi.mode(WIFI_OFF);
             delay(2000);
 
-            // Переключить устройство в локальный режим
             currentMode = LOCAL_MODE;
             preferences.begin("fan_control", false);
             preferences.putInt("device_mode", LOCAL_MODE);
             preferences.end();
             Serial.println("Switched to LOCAL MODE");
 
-            // Запустить задачи заново
             createTasks();
             return;
         }
@@ -82,7 +119,7 @@ void handleEncoder()
         }
         else
         {
-            pulseWidth = 1450; // Сброс к стартовому значению
+            pulseWidth = 1450;
         }
         esc.writeMicroseconds(pulseWidth);
     }

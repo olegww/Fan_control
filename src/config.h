@@ -1,24 +1,18 @@
-#ifndef CONFIG_H // Начало условной компиляции. Проверяем, определён ли макрос CONFIG_H.
-#define CONFIG_H // Если макрос ещё не определён, то определяем его. Это создаёт защиту от повторного включения файла.
-/*
-  Примечание:
-  Этот механизм называется "include guard" (защита от многократного включения).
-  Он предотвращает ошибку множественного определения функций, переменных или других сущностей,
-  если файл заголовка случайно будет включён в нескольких местах проекта.
-*/
+#ifndef CONFIG_H // Conditional compilation starts. Check if we define the CONFIG_H macro.
+#define CONFIG_H // If the macro is not defined yet, we define it. This creates protection against re-inclusion of the file.
 
 #include <WiFi.h>
 #include <Preferences.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPAsyncWiFiManager.h>
-#include <Adafruit_GFX.h>        // Библиотека графики
-#include <Adafruit_SSD1306.h>    // Библиотека для работы с дисплеем SSD1306
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include <GyverEncoder.h>
 #include <ESP32Servo.h>
 #include "display_logo.h"
 #include "menu_logic.h"
 #include "local_disp.h"
-#include <esp_system.h> // Для работы с функцией esp_reset_reason()
+#include <esp_system.h>
 #define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 
@@ -48,6 +42,7 @@ extern Servo esc;
 //extern volatile int rotationCount;
 extern int pulseWidth;
 extern bool localMode;
+extern bool menuActive;
 
 // Настройки AP
 extern const char *apSSID;
@@ -95,7 +90,5 @@ extern bool isStepAdjusting; // Флаг изменения шага
 //extern volatile bool lastHallState;
 
 extern const int hallSensorPin; // Пины для датчика Холла
-
-
 
 #endif // CONFIG_H

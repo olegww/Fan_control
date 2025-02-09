@@ -87,7 +87,8 @@ void updateLocalDisplayTask(void *pvParameters)
             xSemaphoreGive(mutex);
         }
         esp_task_wdt_reset();
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(menuActive ? 200 : 1000));
+        //vTaskDelay(pdMS_TO_TICKS(300));
     }
 }
 
